@@ -1,39 +1,97 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import Layout from "layout/Layout";
-import { useSelector, useDispatch } from "react-redux";
-import { fetchNews } from "features/news/newsSlice";
-import { RootState } from "app/store";
-import { useAppDispatch } from "features/news/newsHooks";
-import NewsList from "components/NewsList";
+import Card from "components/Card";
+import styled from "styled-components";
+import useFetchMovies from "api/news";
 
 const HomeScreen = () => {
-  const dispatch = useAppDispatch();
-  const { entities, loading, error } = useSelector((state: RootState) => {
-    return state.news;
-  });
+  // const dispatch = useAppDispatch();
+  // const { entities, loading, error } = useSelector((state: RootState) => {
+  //   return state.news;
+  // });
 
-  useEffect(() => {
-    dispatch(fetchNews()).unwrap();
-    console.log(entities.results[0].slug_Name);
-  }, []);
+  // useEffect(() => {
+  //   dispatch(fetchNews()).unwrap();
+  //   console.log(entities.results.length);
+  // }, []);
+
+  type IntersectHandler = (
+    entry: IntersectionObserverEntry,
+    observer: IntersectionObserver,
+  ) => void;
+
+  const useIntersect = (
+    onIntersect: IntersectHandler,
+    options?: IntersectionObserverInit,
+  ) => {
+    const ref = useRef<HTMLDivElement>(null);
+    const callback = useCallback(
+      (
+        entries: IntersectionObserverEntry[],
+        observer: IntersectionObserver,
+      ) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) onIntersect(entry, observer);
+        });
+      },
+      [onIntersect],
+    );
+
+    useEffect(() => {
+      if (!ref.current) return;
+      const observer = new IntersectionObserver(callback, options);
+      observer.observe(ref.current);
+      return () => observer.disconnect();
+    }, [ref, options, callback]);
+
+    return ref;
+  };
+
+  const { data, hasNextPage, isFetching, fetchNextPage } = useFetchMovies();
+  console.log(data);
+
+  const movies = useMemo(
+    () => (data ? data.pages.flatMap(({ data }) => data.results) : []),
+    [data],
+  );
+
+  console.log(data);
+
+  const ref = useIntersect(async (entry: any, observer: any) => {
+    observer.unobserve(entry.target);
+    if (hasNextPage && !isFetching) {
+      fetchNextPage();
+    }
+  });
 
   return (
     <Layout>
-      <h1>To do</h1>
-      <h1>Fetch user data</h1>
-      {entities && (
-        <NewsList
-          slug_Name={entities.results[0].slug_Name}
-          title={entities.results[0].title}
-          byline={entities.results[0].byline}
-          source={entities.results[0].source}
-          publishedDate={entities.results[0].publishedDate}
-          geoFacet={entities.results[0].geoFacet}
-        />
-      )}
-      <ul></ul>
+      <Container>
+        {movies.map((movie) => (
+          <Card
+            id={movie.id}
+            title={movie.title}
+            backdropxPath={movie.backdrop_path}
+            originalTitle={movie.original_title}
+            overView={movie.overview}
+            releaseDate={movie.release_date}
+            originalLanguage={movie.original_language}
+            voteAverage={movie.vote_average}
+            posterPath={movie.poster_path}
+            voteCount={movie.vote_count}
+          ></Card>
+        ))}
+        {/* {isFetching && <Loading />} */}
+        <Target ref={ref} />
+      </Container>
     </Layout>
   );
 };
+
+const Target = styled.div`
+  height: 1px;
+`;
+
+const Container = styled.div``;
 
 export default HomeScreen;
